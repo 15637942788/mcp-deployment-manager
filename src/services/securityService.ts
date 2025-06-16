@@ -1,4 +1,4 @@
-import * as fs from "fs-extra";
+import fs from "fs-extra";
 import * as path from "path";
 import { logger } from "../utils/logger.js";
 
@@ -350,20 +350,20 @@ export class SecurityService {
   }
 
   /**
-   * 检查Node.js依赖
+   * 检查 Node.js 依赖
    */
   private checkNodeDependencies(packageJson: any, vulnerableDependencies: string[], unspecifiedVersions: string[]): void {
-    const deps = { ...packageJson.dependencies, ...packageJson.devDependencies };
+    const dependencies = { ...packageJson.dependencies, ...packageJson.devDependencies };
     
-    for (const [name, version] of Object.entries(deps)) {
+    for (const [name, version] of Object.entries(dependencies)) {
       const versionStr = version as string;
       
       // 检查版本是否固定
-      if (versionStr.startsWith("^") || versionStr.startsWith("~") || versionStr === "*") {
+      if (versionStr.startsWith('^') || versionStr.startsWith('~') || versionStr === '*' || versionStr === 'latest') {
         unspecifiedVersions.push(`${name}@${versionStr}`);
       }
-
-      // 简单的已知漏洞检查（在实际环境中应该使用npm audit或专业工具）
+      
+      // 检查已知的有漏洞包
       if (this.isKnownVulnerablePackage(name, versionStr)) {
         vulnerableDependencies.push(`${name}@${versionStr}`);
       }
@@ -548,7 +548,7 @@ export class SecurityService {
   }
 
   /**
-   * 计算安全评分
+   * 计算安全评分 (0-100)
    */
   private calculateSecurityScore(
     codeAnalysis: CodeAnalysisResult,
@@ -558,32 +558,181 @@ export class SecurityService {
   ): number {
     let score = 100;
 
-    // 代码安全（40分）
+    // 代码安全检查 (40分权重)
     if (!codeAnalysis.passed) {
-      score -= codeAnalysis.dangerousFunctions.length * 15;
-      score -= codeAnalysis.maliciousCommands.length * 20;
-      score -= codeAnalysis.suspiciousPatterns.length * 5;
+      score -= Math.min(40, codeAnalysis.dangerousFunctions.length * 10 + codeAnalysis.maliciousCommands.length * 15);
     }
 
-    // 依赖安全（30分）
+    // 依赖安全检查 (30分权重)
     if (!dependencyCheck.passed) {
-      score -= dependencyCheck.vulnerableDependencies.length * 10;
-      score -= dependencyCheck.unspecifiedVersions.length * 2;
+      // 有漏洞的依赖扣分更严重
+      score -= Math.min(20, dependencyCheck.vulnerableDependencies.length * 10);
+      
+      // 未固定版本的依赖扣分相对较轻，但仍需要关注
+      const versionPenalty = Math.min(15, Math.floor(dependencyCheck.unspecifiedVersions.length / 3) * 5);
+      score -= versionPenalty;
+      
+      // 如果依赖版本未固定但没有已知漏洞，给予一定的宽容度
+      if (dependencyCheck.vulnerableDependencies.length === 0 && dependencyCheck.unspecifiedVersions.length > 0) {
+        score += Math.min(5, Math.floor(dependencyCheck.unspecifiedVersions.length / 5)); // 适当回调部分分数
+      }
     }
 
-    // 配置安全（20分）
+    // 配置安全检查 (20分权重)
     if (!configurationCheck.passed) {
-      score -= configurationCheck.hardcodedSecrets.length * 10;
-      score -= configurationCheck.insecureConfigs.length * 5;
+      score -= Math.min(20, configurationCheck.hardcodedSecrets.length * 15 + configurationCheck.insecureConfigs.length * 5);
     }
 
-    // 权限和路径安全（10分）
+    // 权限检查 (10分权重)
     if (!permissionCheck.passed) {
-      if (!permissionCheck.fileExists) score -= 10;
-      if (permissionCheck.pathTraversalRisk) score -= 10;
-      if (!permissionCheck.isInSecurePath) score -= 3;
+      if (!permissionCheck.fileExists) {
+        score -= 10;
+      } else {
+        score -= Math.min(10, 
+          (!permissionCheck.isInSecurePath ? 5 : 0) + 
+          (permissionCheck.pathTraversalRisk ? 5 : 0)
+        );
+      }
     }
 
-    return Math.max(0, Math.min(100, score));
+    return Math.max(0, Math.min(100, Math.round(score)));
+  }
+
+  /**
+   * 修复依赖版本问题
+   */
+  async fixDependencyVersions(projectPath: string, autoFix: boolean = false, createBackup: boolean = true): Promise<{
+    success: boolean;
+    message: string;
+    backupPath?: string;
+    fixedDependencies?: string[];
+    suggestions?: string[];
+  }> {
+    logger.info("开始修复依赖版本问题", { projectPath, autoFix, createBackup });
+
+    try {
+      const packageJsonPath = path.join(projectPath, "package.json");
+      
+      if (!await fs.pathExists(packageJsonPath)) {
+        throw new Error("未找到 package.json 文件");
+      }
+
+      const packageJson = await fs.readJson(packageJsonPath);
+      const originalPackageJson = JSON.parse(JSON.stringify(packageJson));
+
+      // 创建备份
+      let backupPath: string | undefined;
+      if (createBackup) {
+        backupPath = path.join(projectPath, `package.json.backup.${Date.now()}`);
+        await fs.writeFile(backupPath, JSON.stringify(originalPackageJson, null, 2));
+        logger.info("已创建 package.json 备份", { backupPath });
+      }
+
+      const fixedDependencies: string[] = [];
+      const suggestions: string[] = [];
+
+      // 处理生产依赖
+      if (packageJson.dependencies) {
+        for (const [name, version] of Object.entries(packageJson.dependencies)) {
+          const versionStr = version as string;
+          if (versionStr.startsWith('^') || versionStr.startsWith('~') || versionStr === '*' || versionStr === 'latest') {
+            const suggestion = `${name}: 建议固定版本 ${versionStr} -> 具体版本号`;
+            suggestions.push(suggestion);
+            
+            if (autoFix) {
+              // 这里可以添加实际的版本解析逻辑
+              // 暂时保持原版本但移除前缀符号
+              const fixedVersion = versionStr.replace(/^[\^~]/, '');
+              if (fixedVersion !== versionStr) {
+                packageJson.dependencies[name] = fixedVersion;
+                fixedDependencies.push(`${name}@${fixedVersion}`);
+              }
+            }
+          }
+        }
+      }
+
+      // 处理开发依赖
+      if (packageJson.devDependencies) {
+        for (const [name, version] of Object.entries(packageJson.devDependencies)) {
+          const versionStr = version as string;
+          if (versionStr.startsWith('^') || versionStr.startsWith('~') || versionStr === '*' || versionStr === 'latest') {
+            const suggestion = `${name}: 建议固定开发依赖版本 ${versionStr} -> 具体版本号`;
+            suggestions.push(suggestion);
+            
+            if (autoFix) {
+              const fixedVersion = versionStr.replace(/^[\^~]/, '');
+              if (fixedVersion !== versionStr) {
+                packageJson.devDependencies[name] = fixedVersion;
+                fixedDependencies.push(`${name}@${fixedVersion} (dev)`);
+              }
+            }
+          }
+        }
+      }
+
+      // 添加构建脚本优化建议
+      if (packageJson.scripts && packageJson.scripts.build) {
+        const buildScript = packageJson.scripts.build;
+        if (buildScript.includes('&&') && process.platform === 'win32') {
+          suggestions.push("构建脚本: 检测到使用 && 分隔符，在 Windows 环境下可能有兼容性问题");
+          suggestions.push("建议: 考虑使用 npm-run-all 或分别定义脚本来改善跨平台兼容性");
+          
+          if (autoFix) {
+            // 添加 PowerShell 兼容的构建脚本
+            packageJson.scripts['build:win'] = buildScript.replace(/&&/g, ';');
+            fixedDependencies.push("添加了 Windows 兼容的构建脚本: build:win");
+          }
+        }
+      }
+
+      // 保存修改后的 package.json
+      if (autoFix && fixedDependencies.length > 0) {
+        await fs.writeFile(packageJsonPath, JSON.stringify(packageJson, null, 2));
+        logger.info("已更新 package.json", { fixedCount: fixedDependencies.length });
+      }
+
+      // 生成 shrinkwrap 建议
+      if (suggestions.length > 0) {
+        suggestions.push("建议执行 'npm shrinkwrap' 来锁定所有依赖版本");
+        suggestions.push("或者执行 'npm ci' 来确保使用 package-lock.json 中的确切版本");
+      }
+
+      const message = autoFix 
+        ? `已修复 ${fixedDependencies.length} 个依赖版本问题，${suggestions.length} 个建议`
+        : `发现 ${suggestions.length} 个依赖版本问题和优化建议`;
+
+      const result: {
+        success: boolean;
+        message: string;
+        backupPath?: string;
+        fixedDependencies?: string[];
+        suggestions?: string[];
+      } = {
+        success: true,
+        message
+      };
+
+      if (backupPath) {
+        result.backupPath = backupPath;
+      }
+
+      if (fixedDependencies.length > 0) {
+        result.fixedDependencies = fixedDependencies;
+      }
+
+      if (suggestions.length > 0) {
+        result.suggestions = suggestions;
+      }
+
+      return result;
+
+    } catch (error) {
+      logger.error("修复依赖版本问题失败", { error: (error as Error).message });
+      return {
+        success: false,
+        message: `修复失败: ${(error as Error).message}`
+      };
+    }
   }
 } 

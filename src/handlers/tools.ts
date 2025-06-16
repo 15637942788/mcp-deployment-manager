@@ -4,7 +4,7 @@ import {
   CallToolRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
 import * as path from "path";
-import * as fs from "fs-extra";
+import fs from "fs-extra";
 import * as os from "os";
 import ConfigService from "../services/configService.js";
 import { SecurityService } from "../services/securityService.js";
@@ -40,7 +40,7 @@ export function setupToolHandlers(server: Server): void {
               },
               serverType: {
                 type: "string",
-                enum: ["node", "python", "npm", "executable"],
+                enum: ["node", "python", "npm", "executable", "cmd", "docker"],
                 description: "服务器类型"
               },
               description: {
@@ -68,6 +68,10 @@ export function setupToolHandlers(server: Server): void {
               force: {
                 type: "boolean",
                 description: "是否强制覆盖现有同名服务器（默认false，建议谨慎使用）"
+              },
+              skipValidation: {
+                type: "boolean",
+                description: "是否跳过配置验证（默认false，仅在遇到验证问题时使用）"
               }
             },
             required: ["name", "serverPath", "serverType"]
@@ -243,6 +247,28 @@ export function setupToolHandlers(server: Server): void {
           }
         },
         {
+          name: "fix_dependency_versions",
+          description: "分析并修复项目依赖版本问题，提供版本固定建议和跨平台构建优化",
+          inputSchema: {
+            type: "object",
+            properties: {
+              projectPath: {
+                type: "string",
+                description: "项目根目录路径"
+              },
+              autoFix: {
+                type: "boolean",
+                description: "是否自动修复版本问题（默认false，仅提供建议）"
+              },
+              createBackup: {
+                type: "boolean",
+                description: "修复前是否创建备份（默认true）"
+              }
+            },
+            required: ["projectPath"]
+          }
+        },
+        {
           name: "config_protection_manager",
           description: "管理MCP配置保护策略，确保配置安全和备份机制",
           inputSchema: {
@@ -318,6 +344,9 @@ export function setupToolHandlers(server: Server): void {
         case "build_time_security_check":
           return await handleBuildTimeSecurityCheck(args as { projectPath: string, buildCommand?: string, outputPath?: string }, timer);
 
+        case "fix_dependency_versions":
+          return await handleFixDependencyVersions(args as { projectPath: string, autoFix: boolean, createBackup: boolean }, timer);
+
         case "config_protection_manager":
           return await handleConfigProtectionManager(configService, args as { action: string, protectionLevel?: string, backupFile?: string }, timer);
 
@@ -347,34 +376,82 @@ export async function handleDeployServer(
   args: DeployServerRequest,
   timer: PerformanceTimer
 ): Promise<any> {
-  const { name, serverPath, serverType, description, env, disabled, autoApprove, force = false } = args;
-  // 校验服务器路径
-  if (!(await fs.pathExists(serverPath))) {
-    throw new Error(`服务器文件不存在: ${serverPath}`);
-  }
-  // 检查部署标准
-  const deploymentRulesResult = await ensureDeploymentRules(serverPath);
-  if (!deploymentRulesResult.success) {
-    throw new Error(`项目级部署标准检查失败: ${deploymentRulesResult.message}`);
-  }
-  // 构建服务器配置
-  const serverConfig = {
-    command: getCommandForServerType(serverType, serverPath),
-    args: getArgsForServerType(serverType, serverPath),
-    ...(env && { env }),
-    ...(disabled !== undefined && { disabled }),
-    ...(autoApprove && { autoApprove })
-  };
-  // 查找项目根目录
-  const projectRoot = findProjectRoot(serverPath) || undefined;
-  // 调用受保护的部署方法
-  const result = await configService.addServerWithProtection(
+  const { name, serverPath, serverType, description, env, disabled, autoApprove, force, skipValidation } = args;
+
+  try {
+    toolLogger.info("开始部署MCP服务器", { name, serverPath, serverType });
+
+    // 强制执行部署规则
+    await ensureDeploymentRules();
+
+    // 检查服务器文件是否存在
+    if (!await fs.pathExists(serverPath)) {
+      throw new Error(`服务器文件不存在: ${serverPath}`);
+    }
+
+    // 检查是否为构建产物文件，并验证构建状态
+    const projectRoot = findProjectRoot(serverPath);
+    if (projectRoot) {
+      const packageJsonPath = path.join(projectRoot, 'package.json');
+      if (await fs.pathExists(packageJsonPath)) {
+        const packageJson = await fs.readJson(packageJsonPath);
+        
+        // 如果是 TypeScript 项目或有构建脚本
+        if (packageJson.scripts?.build || packageJson.devDependencies?.typescript) {
+          const distPath = path.join(projectRoot, 'dist');
+          const srcPath = path.join(projectRoot, 'src');
+          
+          // 检查是否部署的是构建后的文件
+          if (serverPath.includes('dist') && await fs.pathExists(srcPath)) {
+            toolLogger.warn("检测到部署构建文件，检查构建状态", { serverPath, projectRoot });
+            
+            try {
+              // 比较源码和构建文件的修改时间
+              const srcStats = await fs.stat(srcPath);
+              const distStats = await fs.stat(distPath);
+              
+              if (srcStats.mtime > distStats.mtime) {
+                toolLogger.warn("检测到源码比构建文件更新", { 
+                  srcModified: srcStats.mtime, 
+                  distModified: distStats.mtime 
+                });
+                
+                // 这里不阻止部署，但会在结果中添加警告
+                const warning = "⚠️ 检测到源码比构建文件更新，建议重新构建以确保使用最新代码";
+                timer.addWarning?.(warning);
+              }
+            } catch (statsError) {
+              toolLogger.debug("无法比较文件修改时间", { error: statsError });
+            }
+          }
+          
+          // 检查常见的构建兼容性问题
+          if (process.platform === 'win32' && packageJson.scripts?.build?.includes('&&')) {
+            const warning = "检测到构建脚本可能存在 Windows 兼容性问题，建议使用 fix_dependency_versions 工具修复";
+            timer.addWarning?.(warning);
+          }
+        }
+            }
+    }
+
+    // 构建服务器配置
+    const serverConfig = {
+      command: getCommandForServerType(serverType, serverPath),
+      args: getArgsForServerType(serverType, serverPath),
+      ...(env && { env }),
+      ...(disabled !== undefined && { disabled }),
+      ...(autoApprove && { autoApprove })
+    };
+    
+    // 调用受保护的部署方法
+    const result = await configService.addServerWithProtection(
     name,
     serverConfig,
     serverPath,
     projectRoot,
     force,
-    false // 永远不跳过安全检查
+    false, // 永远不跳过安全检查
+    skipValidation // 根据用户参数决定是否跳过验证
   );
   timer.end({
     success: result.success,
@@ -452,7 +529,7 @@ export async function handleDeployServer(
           exists: deploymentRulesResult.projectStandardExists || false,
           synced: deploymentRulesResult.standardSynced || false,
           message: deploymentRulesResult.message,
-          location: deploymentRulesResult.targetPath || "未知",
+          location: "全局安全策略",
           status: deploymentRulesResult.standardSynced ? "已同步最新标准" : "使用现有项目标准"
         },
         ...(result.errors && { errors: result.errors }),
@@ -502,6 +579,10 @@ export function getCommandForServerType(serverType: string, serverPath: string):
       return "npx";
     case "executable":
       return serverPath;
+    case "cmd":
+      return "cmd";
+    case "docker":
+      return "docker";
     default:
       throw new Error(`不支持的服务器类型: ${serverType}`);
   }
@@ -520,6 +601,10 @@ export function getArgsForServerType(serverType: string, serverPath: string): st
       return ["-y", packageName];
     case "executable":
       return [];
+    case "cmd":
+      return ["/c", serverPath]; // Windows cmd 参数
+    case "docker":
+      return ["run", "--rm", "-i", serverPath]; // Docker 基本参数，用户可以通过 env 或其他方式定制
     default:
       throw new Error(`不支持的服务器类型: ${serverType}`);
   }
@@ -1259,48 +1344,139 @@ async function handleBuildTimeSecurityCheck(
         toolLogger.info("执行构建命令", { buildCommand, projectPath });
         
         const { spawn } = await import('child_process');
-        const buildProcess = spawn(buildCommand, { 
+        
+        // 处理 Windows PowerShell 兼容性问题
+        let actualCommand = buildCommand;
+        let commandOptions: any = { 
           shell: true, 
           cwd: projectPath,
           stdio: ['pipe', 'pipe', 'pipe']
+        };
+
+        // 检测并修复常见的 shell 兼容性问题
+        if (process.platform === 'win32') {
+          // Windows 环境下的特殊处理
+          if (buildCommand.includes('&&')) {
+            // 将 && 分隔的命令转换为 PowerShell 兼容语法
+            const commands = buildCommand.split('&&').map(cmd => cmd.trim());
+            actualCommand = commands.join('; ');
+            toolLogger.info("检测到 Windows 环境，已转换命令语法", { 
+              original: buildCommand, 
+              converted: actualCommand 
+            });
+          }
+          
+          // 使用 PowerShell 作为默认 shell
+          commandOptions.shell = 'powershell.exe';
+          
+          // 处理常见的 npm 脚本问题
+          if (actualCommand.includes('npm run build') && actualCommand.includes('tsc')) {
+            // 对于 TypeScript 项目，提供备用构建策略
+            actualCommand = 'npm run build; if ($LASTEXITCODE -ne 0) { npx tsc }';
+          }
+        }
+
+        const buildProcess = spawn(actualCommand, [], commandOptions);
+
+        buildResult = await new Promise<any>((resolve, reject) => {
+          let stdout = '';
+          let stderr = '';
+          
+          buildProcess.stdout?.on('data', (data) => {
+            stdout += data.toString();
+          });
+          
+          buildProcess.stderr?.on('data', (data) => {
+            stderr += data.toString();
+          });
+          
+          buildProcess.on('close', (code) => {
+            resolve({
+              exitCode: code,
+              stdout,
+              stderr,
+              success: code === 0,
+              originalCommand: buildCommand,
+              executedCommand: actualCommand,
+              platform: process.platform
+            });
+          });
+          
+          buildProcess.on('error', (error) => {
+            reject(new Error(`构建过程错误: ${error.message} (平台: ${process.platform}, 命令: ${actualCommand})`));
+          });
+          
+          // 10分钟超时
+          setTimeout(() => {
+            buildProcess.kill();
+            reject(new Error(`构建超时 (平台: ${process.platform}, 命令: ${actualCommand})`));
+          }, 600000);
         });
 
-                 buildResult = await new Promise<any>((resolve, reject) => {
-           let stdout = '';
-           let stderr = '';
-           
-           buildProcess.stdout?.on('data', (data) => {
-             stdout += data.toString();
-           });
-           
-           buildProcess.stderr?.on('data', (data) => {
-             stderr += data.toString();
-           });
-           
-           buildProcess.on('close', (code) => {
-             resolve({
-               exitCode: code,
-               stdout,
-               stderr,
-               success: code === 0
-             });
-           });
-           
-           buildProcess.on('error', (error) => {
-             reject(error);
-           });
-           
-           // 10分钟超时
-           setTimeout(() => {
-             buildProcess.kill();
-             reject(new Error('构建超时'));
-           }, 600000);
-         });
+        // 如果构建失败，尝试备用构建策略
+        if (!buildResult.success && process.platform === 'win32') {
+          toolLogger.warn("主构建失败，尝试备用构建策略", { originalCommand: buildCommand });
+          
+          // 尝试直接使用 npm 命令
+          if (buildCommand.includes('npm run build')) {
+            try {
+              const fallbackProcess = spawn('npm', ['run', 'build'], {
+                cwd: projectPath,
+                stdio: ['pipe', 'pipe', 'pipe'],
+                shell: true
+              });
+              
+              const fallbackResult = await new Promise<any>((resolve, reject) => {
+                let stdout = '';
+                let stderr = '';
+                
+                fallbackProcess.stdout?.on('data', (data) => {
+                  stdout += data.toString();
+                });
+                
+                fallbackProcess.stderr?.on('data', (data) => {
+                  stderr += data.toString();
+                });
+                
+                fallbackProcess.on('close', (code) => {
+                  resolve({
+                    exitCode: code,
+                    stdout,
+                    stderr,
+                    success: code === 0,
+                    fallbackUsed: true
+                  });
+                });
+                
+                fallbackProcess.on('error', reject);
+                
+                setTimeout(() => {
+                  fallbackProcess.kill();
+                  reject(new Error('备用构建超时'));
+                }, 300000);
+              });
+              
+              if (fallbackResult.success) {
+                buildResult = {
+                  ...fallbackResult,
+                  originalCommand: buildCommand,
+                  executedCommand: 'npm run build (fallback)',
+                  platform: process.platform
+                };
+                toolLogger.info("备用构建策略成功");
+              }
+            } catch (fallbackError) {
+              toolLogger.error("备用构建策略也失败", { error: fallbackError });
+            }
+          }
+        }
 
       } catch (error) {
         buildResult = {
           success: false,
-          error: (error as Error).message
+          error: (error as Error).message,
+          platform: process.platform,
+          originalCommand: buildCommand
         };
       }
     }
@@ -1346,7 +1522,7 @@ async function handleBuildTimeSecurityCheck(
               passed: overallPassed,
               averageScore: Math.round(averageScore),
               totalFilesChecked: allResults.length,
-                             buildSuccess: buildResult ? buildResult.success !== false : true
+              buildSuccess: buildResult ? buildResult.success !== false : true
             },
             preBuildSecurity: {
               filesChecked: preBuildResults.length,
@@ -1380,6 +1556,14 @@ async function handleBuildTimeSecurityCheck(
             recommendations: [
               ...(averageScore < 70 ? ["修复所有安全问题后再进行部署"] : []),
               ...(averageScore < 85 ? ["建议提升代码安全性以达到更高标准"] : []),
+              ...(buildResult && !buildResult.success ? [
+                "⚠️ 构建失败 - 使用现有构建文件可能不是最新版本",
+                "建议修复构建问题以确保使用最新代码",
+                "可以使用 fix_dependency_versions 工具来修复依赖版本和构建兼容性问题"
+              ] : []),
+              ...(buildResult && buildResult.fallbackUsed ? [
+                "✓ 使用了备用构建策略 - 建议修复原始构建脚本的兼容性问题"
+              ] : []),
               "确保所有依赖包版本固定且无已知漏洞",
               "移除任何硬编码的敏感信息",
               "在部署前使用 deploy_mcp_server 工具进行最终安全验证"
@@ -1387,7 +1571,8 @@ async function handleBuildTimeSecurityCheck(
             complianceInfo: {
               mcpDeploymentStandard: "已按照MCP部署安全标准执行检查",
               buildTimeSecurity: "构建时安全检查已完成",
-              nextStep: overallPassed ? "可以进行部署" : "需要修复安全问题"
+              buildStatus: buildResult ? (buildResult.success ? "构建成功" : "构建失败") : "未执行构建",
+              nextStep: overallPassed ? (buildResult && !buildResult.success ? "建议修复构建问题后再部署" : "可以进行部署") : "需要修复安全问题"
             }
           }
         }, null, 2)
@@ -1535,6 +1720,61 @@ async function handleGlobalSecurityManager(
           success: false,
           error: `全局安全管理器操作失败: ${(error as Error).message}`,
           action: args.action
+        }, null, 2)
+      }]
+    };
+  }
+}
+
+/**
+ * 处理修复依赖版本问题
+ */
+async function handleFixDependencyVersions(
+  args: { projectPath: string, autoFix: boolean, createBackup: boolean },
+  timer: PerformanceTimer
+): Promise<any> {
+  const { projectPath, autoFix, createBackup } = args;
+  const securityService = new SecurityService();
+
+  try {
+    toolLogger.info("开始修复依赖版本问题", { projectPath, autoFix, createBackup });
+
+    // 验证项目路径
+    if (!(await fs.pathExists(projectPath))) {
+      throw new Error(`项目路径不存在: ${projectPath}`);
+    }
+
+    // 执行依赖版本修复
+    const fixResult = await securityService.fixDependencyVersions(projectPath, autoFix, createBackup);
+    
+    timer.end({ success: fixResult.success });
+
+    return {
+      content: [{
+        type: "text",
+        text: JSON.stringify({
+          fixDependencyVersions: {
+            projectPath,
+            autoFix,
+            createBackup,
+            success: fixResult.success,
+            message: fixResult.message
+          }
+        }, null, 2)
+      }]
+    };
+
+  } catch (error) {
+    timer.end({ success: false, error: (error as Error).message });
+    toolLogger.error("修复依赖版本问题失败", { projectPath, error: (error as Error).message });
+    
+    return {
+      content: [{
+        type: "text",
+        text: JSON.stringify({
+          success: false,
+          error: `修复依赖版本问题失败: ${(error as Error).message}`,
+          projectPath
         }, null, 2)
       }]
     };

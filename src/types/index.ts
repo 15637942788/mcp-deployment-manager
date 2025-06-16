@@ -22,12 +22,13 @@ export interface CursorMCPConfig {
 export interface DeployServerRequest {
   name: string;
   serverPath: string;
-  serverType: "node" | "python" | "npm" | "executable";
+  serverType: "node" | "python" | "npm" | "executable" | "cmd" | "docker";
   description?: string;
   env?: Record<string, string>;
   disabled?: boolean;
   autoApprove?: string[];
   force?: boolean;
+  skipValidation?: boolean;
 }
 
 /**

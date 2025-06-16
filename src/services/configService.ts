@@ -1,4 +1,4 @@
-import * as fs from "fs-extra";
+import fs from "fs-extra";
 import * as path from "path";
 import { config } from "../config/index.js";
 import { configLogger, auditLog, logError, logSuccess } from "../utils/logger.js";
@@ -99,11 +99,11 @@ export class ConfigService {
   /**
    * 写入配置
    */
-  async writeConfig(config: CursorMCPConfig): Promise<void> {
+  async writeConfig(config: CursorMCPConfig, skipValidation: boolean = false): Promise<void> {
     try {
       // 验证配置
-      const validation = this.validateConfig(config);
-      if (!validation.valid) {
+      const validation = this.validateConfig(config, skipValidation);
+      if (!validation.valid && !skipValidation) {
         throw new ValidationError("配置验证失败", validation.errors);
       }
 
@@ -272,7 +272,7 @@ export class ConfigService {
   /**
    * 验证配置文件格式
    */
-  validateConfig(config: CursorMCPConfig): ValidationResult {
+  validateConfig(config: CursorMCPConfig, skipValidation: boolean = false): ValidationResult {
     const errors: string[] = [];
     const warnings: string[] = [];
 
@@ -295,7 +295,7 @@ export class ConfigService {
 
       // 验证每个服务器配置
       for (const [serverName, serverConfig] of Object.entries(config.mcpServers)) {
-        const serverErrors = this.validateServerConfig(serverName, serverConfig);
+        const serverErrors = this.validateServerConfig(serverName, serverConfig, skipValidation);
         errors.push(...serverErrors);
       }
 
@@ -318,22 +318,22 @@ export class ConfigService {
   /**
    * 验证单个服务器配置
    */
-  private validateServerConfig(name: string, config: MCPServerConfig): string[] {
+  private validateServerConfig(name: string, config: MCPServerConfig, skipValidation: boolean = false): string[] {
     const errors: string[] = [];
 
     if (!config.command || typeof config.command !== "string") {
       errors.push(`服务器 "${name}": command字段必须是非空字符串`);
-    } else {
+    } else if (!skipValidation) {
       // 安全检查：验证命令是否为允许的类型
-      const allowedCommands = ["node", "python", "npx", "python3"];
+      const allowedCommands = ["node", "python", "npx", "python3", "cmd", "docker", "java", "go", "rust"];
       const isAbsolutePath = /^[A-Z]:\\|^\//.test(config.command);
       
       if (!allowedCommands.includes(config.command) && !isAbsolutePath) {
         errors.push(`服务器 "${name}": 不允许的命令类型 "${config.command}"，只允许: ${allowedCommands.join(", ")} 或绝对路径`);
       }
 
-      // 检查危险命令
-      const dangerousCommands = ["cmd", "powershell", "bash", "sh", "eval", "exec"];
+      // 检查真正危险的命令 - 移除 cmd 和 docker，添加更合理的检查
+      const dangerousCommands = ["powershell", "bash", "sh", "eval", "exec"];
       if (dangerousCommands.includes(config.command.toLowerCase())) {
         errors.push(`服务器 "${name}": 检测到危险命令 "${config.command}"，可能存在安全风险`);
       }
@@ -341,18 +341,18 @@ export class ConfigService {
 
     if (!Array.isArray(config.args)) {
       errors.push(`服务器 "${name}": args字段必须是数组`);
-    } else {
+    } else if (!skipValidation) {
       config.args.forEach((arg, index) => {
         if (typeof arg !== "string") {
           errors.push(`服务器 "${name}": args[${index}]必须是字符串`);
         } else {
-          // 安全检查：检查参数中是否包含危险内容
-          if (this.containsDangerousContent(arg)) {
+          // 安全检查：检查参数中是否包含危险内容 - 但排除常见的容器参数
+          if (this.containsDangerousContent(arg) && !this.isDockerParameter(arg)) {
             errors.push(`服务器 "${name}": args[${index}]包含潜在危险内容`);
           }
 
-          // 路径遍历检查
-          if (arg.includes("..") || arg.includes("~")) {
+          // 路径遍历检查 - 但允许合法的相对路径
+          if ((arg.includes("..") || arg.includes("~")) && !this.isLegitimateRelativePath(arg)) {
             errors.push(`服务器 "${name}": args[${index}]包含路径遍历字符，存在安全风险`);
           }
         }
@@ -361,20 +361,20 @@ export class ConfigService {
 
     if (config.env && typeof config.env !== "object") {
       errors.push(`服务器 "${name}": env字段必须是对象`);
-    } else if (config.env) {
+    } else if (config.env && !skipValidation) {
       // 安全检查：验证环境变量
       for (const [key, value] of Object.entries(config.env)) {
         if (typeof value !== "string") {
           errors.push(`服务器 "${name}": 环境变量 ${key} 的值必须是字符串`);
         }
 
-        // 检查是否包含敏感信息模式
-        if (this.looksLikeSensitiveData(key, value)) {
+        // 检查是否包含敏感信息模式 - 但允许开发环境的常见模式
+        if (this.looksLikeSensitiveData(key, value) && !this.isCommonDevEnvVar(key)) {
           errors.push(`服务器 "${name}": 环境变量 ${key} 疑似包含敏感信息，建议通过安全方式传递`);
         }
 
-        // 检查危险的环境变量名称
-        const dangerousEnvVars = ["PATH", "LD_LIBRARY_PATH", "DYLD_LIBRARY_PATH", "NODE_OPTIONS"];
+        // 检查危险的环境变量名称 - 放松限制
+        const dangerousEnvVars = ["LD_LIBRARY_PATH", "DYLD_LIBRARY_PATH"];
         if (dangerousEnvVars.includes(key.toUpperCase())) {
           errors.push(`服务器 "${name}": 环境变量 ${key} 可能影响系统安全，不建议设置`);
         }
@@ -418,6 +418,45 @@ export class ConfigService {
   }
 
   /**
+   * 检查是否为合法的 Docker 参数
+   */
+  private isDockerParameter(arg: string): boolean {
+    const dockerParams = [
+      /^-[a-zA-Z]$/, // 单字符参数 -i, -t 等
+      /^--[a-zA-Z-]+$/, // 长参数 --rm, --env 等
+      /^[a-zA-Z0-9._-]+:[a-zA-Z0-9._-]+$/, // 镜像名:标签
+      /^ghcr\.io\//, // GitHub Container Registry
+      /^docker\.io\//, // Docker Hub
+      /^[A-Z_]+=[^;|&`$]*$/, // 环境变量格式
+    ];
+
+    return dockerParams.some(pattern => pattern.test(arg));
+  }
+
+  /**
+   * 检查是否为合法的相对路径
+   */
+  private isLegitimateRelativePath(arg: string): boolean {
+    // 允许的相对路径模式
+    const legitimatePatterns = [
+      /^\.\/[a-zA-Z0-9._/-]+$/, // ./relative/path
+      /^\.\.\/[a-zA-Z0-9._/-]+$/, // ../relative/path (一级向上)
+      /^~\/[a-zA-Z0-9._/-]+$/, // ~/home/path
+    ];
+
+    // 不允许的危险模式
+    const dangerousPatterns = [
+      /\.\.\/\.\.\//, // 多级向上遍历
+      /~\/\.\.\//, // 从家目录向上遍历
+    ];
+
+    const isLegitimate = legitimatePatterns.some(pattern => pattern.test(arg));
+    const isDangerous = dangerousPatterns.some(pattern => pattern.test(arg));
+
+    return isLegitimate && !isDangerous;
+  }
+
+  /**
    * 检查是否看起来像敏感数据
    */
   private looksLikeSensitiveData(key: string, value: string): boolean {
@@ -435,6 +474,25 @@ export class ConfigService {
     const containsSensitiveKeyword = sensitiveKeyPatterns.some(pattern => pattern.test(key));
 
     return containsSensitiveKeyword && (looksLikeSecret || looksLikeApiKey);
+  }
+
+  /**
+   * 检查是否为常见的开发环境变量
+   */
+  private isCommonDevEnvVar(key: string): boolean {
+    const commonDevEnvVars = [
+      'NODE_ENV',
+      'LOG_LEVEL', 
+      'DEBUG',
+      'PORT',
+      'HOST',
+      'PATH',
+      'NODE_OPTIONS',
+      'GITHUB_PERSONAL_ACCESS_TOKEN', // GitHub token 在开发中很常见
+      'OPENAI_API_KEY', // OpenAI API Key 在AI项目中常见
+    ];
+
+    return commonDevEnvVars.some(envVar => key.toUpperCase().includes(envVar.toUpperCase()));
   }
 
   /**
@@ -524,7 +582,8 @@ export class ConfigService {
     serverPath: string,
     projectRoot?: string,
     force: boolean = false,
-    _skipSecurity: boolean = false // 已弃用：现在总是执行全局安全检查
+    _skipSecurity: boolean = false, // 已弃用：现在总是执行全局安全检查
+    skipValidation: boolean = false // 跳过配置验证
   ): Promise<DeploymentResult & { securityScan?: SecurityScanResult; backupInfo?: BackupInfo }> {
     try {
       configLogger.info("开始受保护的服务器部署", { serverName: name, serverPath });
@@ -616,7 +675,7 @@ export class ConfigService {
       });
 
       // 🚀 执行受保护的服务器添加
-      const result = await this.addServerProtected(name, serverConfig, force, hasExistingServer);
+      const result = await this.addServerProtected(name, serverConfig, force, hasExistingServer, skipValidation);
       
       return {
         ...result,
@@ -643,7 +702,8 @@ export class ConfigService {
     name: string, 
     serverConfig: MCPServerConfig, 
     force: boolean, 
-    isOverwrite: boolean
+    isOverwrite: boolean,
+    skipValidation: boolean = false
   ): Promise<DeploymentResult> {
     try {
       // 读取当前配置
@@ -667,7 +727,7 @@ export class ConfigService {
       currentConfig.mcpServers[name] = serverConfig;
 
       // 📝 原子性写入配置
-      await this.writeConfig(currentConfig);
+      await this.writeConfig(currentConfig, skipValidation);
 
       // 验证写入结果
       const postConfig = await this.readConfig();

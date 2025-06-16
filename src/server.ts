@@ -5,7 +5,7 @@ import { setupResourceHandlers } from "./handlers/resources.js";
 import { setupPromptHandlers } from "./handlers/prompts.js";
 import { logger, logError, logSuccess } from "./utils/logger.js";
 import { config } from "./config/index.js";
-import * as fs from "fs-extra";
+import fs from "fs-extra";
 import * as path from "path";
 
 /**
