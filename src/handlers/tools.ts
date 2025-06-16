@@ -342,138 +342,12 @@ export function setupToolHandlers(server: Server): void {
 /**
  * 处理部署服务器
  */
-async function handleDeployServer(
+export async function handleDeployServer(
   configService: ConfigService,
   args: DeployServerRequest,
   timer: PerformanceTimer
 ): Promise<any> {
-  const { name, serverPath, serverType, description, env, disabled, autoApprove, force = false } = args;
-
-  // 验证服务器路径
-  if (!(await fs.pathExists(serverPath))) {
-    throw new Error(`服务器文件不存在: ${serverPath}`);
-  }
-
-  // 不再检查项目本地的规则文件 - 使用全局安全策略
-  configLogger.info("使用全局安全策略，无需检查项目本地规则文件", { serverPath });
-
-  // 构建服务器配置
-  const serverConfig: MCPServerConfig = {
-    command: getCommandForServerType(serverType, serverPath),
-    args: getArgsForServerType(serverType, serverPath),
-    ...(env && { env }),
-    ...(disabled !== undefined && { disabled }),
-    ...(autoApprove && { autoApprove })
-  };
-
-  // 使用受保护的部署方法 - 强制安全检查和备份保护
-  toolLogger.info("使用受保护的部署方法", { serverName: name, serverPath });
-  const projectRoot = findProjectRoot(serverPath) || undefined;
-  
-  const result = await configService.addServerWithProtection(
-    name, 
-    serverConfig, 
-    serverPath,
-    projectRoot,
-    force,
-    false // 永远不跳过安全检查
-  );
-  
-  timer.end({ 
-    success: result.success, 
-    serverName: name, 
-    forced: force, 
-    securityScore: result.securityScan?.score || 0,
-    backupCreated: !!result.backupInfo
-  });
-
-  // 如果部署失败，返回详细的错误信息
-  if (!result.success) {
-    return {
-      content: [{
-        type: "text",
-        text: JSON.stringify({
-          success: false,
-          message: result.message,
-          serverName: name,
-          configurationProtection: {
-            backupCreated: !!result.backupInfo,
-            backupFile: result.backupInfo?.filename,
-            originalConfigProtected: true,
-            protectionLevel: "强制备份与配置保护"
-          },
-          securityScan: result.securityScan ? {
-            passed: result.securityScan.passed,
-            score: result.securityScan.score,
-            errors: result.securityScan.errors,
-            warnings: result.securityScan.warnings
-          } : undefined,
-          securityDetails: result.securityScan?.details,
-          recommendation: result.securityScan?.score && result.securityScan.score < 70 
-            ? "请修复所有安全问题后重新尝试部署" 
-            : "请修复安全警告后重新部署，或使用 force: true 强制部署",
-          complianceInfo: {
-            globalSecurityPolicyEnforced: true,
-            securityStandardEnforced: true,
-            configurationProtectionEnabled: true,
-            minRequiredScore: 70,
-            recommendedScore: 85,
-            actualScore: result.securityScan?.score || 0
-          },
-          globalSecurityPolicy: {
-            enforced: true,
-            type: "global",
-            message: "使用全局安全策略，无需依赖项目本地标准文件",
-            location: "全局配置（不依赖项目文件）"
-          },
-          errors: result.errors,
-          warnings: result.warnings
-        }, null, 2)
-      }]
-    };
-  }
-
-  // 部署成功
-  return {
-    content: [{
-      type: "text",
-              text: JSON.stringify({
-          success: true,
-          message: result.message,
-          serverName: result.serverName,
-          serverConfig,
-          description,
-          force,
-          configurationProtection: {
-            backupCreated: !!result.backupInfo,
-            backupFile: result.backupInfo?.filename,
-            backupSize: result.backupInfo?.size,
-            originalServersCount: result.backupInfo?.configCount,
-            protectionLevel: "强制备份与配置保护已启用"
-          },
-          securityScan: result.securityScan ? {
-            passed: result.securityScan.passed,
-            score: result.securityScan.score,
-            warnings: result.securityScan.warnings
-          } : undefined,
-          complianceInfo: {
-            globalSecurityPolicyEnforced: true,
-            securityStandardEnforced: true,
-            configurationProtectionEnabled: true,
-            mcpDeploymentStandard: "所有部署均经过全局安全策略验证并强制备份保护"
-          },
-          globalSecurityPolicy: {
-            enforced: true,
-            type: "global",
-            message: "使用全局安全策略，确保所有项目部署的一致性和安全性",
-            location: "全局配置（不依赖项目文件）",
-            status: "全局强制执行"
-          },
-          ...(result.errors && { errors: result.errors }),
-          ...(result.warnings && { warnings: result.warnings })
-        }, null, 2)
-    }]
-  };
+  // ... existing code ...
 }
 
 /**
@@ -753,7 +627,7 @@ function findProjectRoot(startPath: string): string | null {
 /**
  * 处理安全扫描
  */
-async function handleSecurityScan(
+export async function handleSecurityScan(
   args: { serverPath: string, projectRoot?: string },
   timer: PerformanceTimer
 ): Promise<any> {
@@ -1007,7 +881,7 @@ async function handleEnforceSecurityPolicy(
 /**
  * 处理配置保护管理
  */
-async function handleConfigProtectionManager(
+export async function handleConfigProtectionManager(
   configService: ConfigService,
   args: { action: string, protectionLevel?: string, backupFile?: string },
   timer: PerformanceTimer
@@ -1562,4 +1436,13 @@ async function handleGlobalSecurityManager(
   }
 }
 
-export default setupToolHandlers; 
+export {
+  handleDeployServer,
+  handleListServers,
+  handleRemoveServer,
+  handleBackupConfig,
+  handleRestoreConfig,
+  handleValidateConfig
+};
+
+setupToolHandlers; 
