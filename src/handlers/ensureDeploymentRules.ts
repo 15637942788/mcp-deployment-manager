@@ -1,6 +1,6 @@
 import * as fs from 'fs-extra';
 import * as path from 'path';
-import { toolLogger } from '../utils/logger';
+import { toolLogger } from '../utils/logger.js';
 
 /**
  * 确保部署规则文件存在（增强版）

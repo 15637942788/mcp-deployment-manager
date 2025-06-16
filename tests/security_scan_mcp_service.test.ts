@@ -75,7 +75,7 @@ const mockScanResultFail = {
 describe('security_scan_mcp_service 功能', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    (fs.pathExists as any) = vi.fn().mockResolvedValue(true);
+    vi.mocked(fs.pathExists).mockResolvedValue(true as any);
     vi.spyOn(SecurityService.prototype, 'scanMCPService').mockReset();
   });
 

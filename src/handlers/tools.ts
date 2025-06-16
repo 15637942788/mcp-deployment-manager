@@ -12,7 +12,7 @@ import { toolLogger, logError, PerformanceTimer } from "../utils/logger.js";
 import {
   DeployServerRequest
 } from "../types/index.js";
-import { ensureDeploymentRules } from './ensureDeploymentRules';
+import { ensureDeploymentRules } from './ensureDeploymentRules.js';
 
 /**
  * 设置工具处理器

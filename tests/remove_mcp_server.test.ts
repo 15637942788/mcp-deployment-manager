@@ -3,7 +3,7 @@ import { ConfigService } from '../src/services/configService';
 import { handleRemoveServer } from '../src/handlers/tools';
 
 vi.mock('../src/services/configService');
-const mockConfigService = new ConfigService() as unknown as ConfigService;
+const mockConfigService = new ConfigService();
 
 describe('remove_mcp_server 功能', () => {
   beforeEach(() => {

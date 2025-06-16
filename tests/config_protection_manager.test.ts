@@ -3,7 +3,7 @@ import { handleConfigProtectionManager } from '../src/handlers/tools';
 import { ConfigService } from '../src/services/configService';
 
 vi.mock('../src/services/configService');
-const mockConfigService = new ConfigService() as unknown as ConfigService;
+const mockConfigService = new ConfigService();
 
 describe('config_protection_manager 功能', () => {
   beforeEach(() => {

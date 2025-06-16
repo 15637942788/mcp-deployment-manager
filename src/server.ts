@@ -45,10 +45,22 @@ class MCPDeploymentServer {
    */
   private setupHandlers(): void {
     try {
+      // 调试：输出配置信息
+      logger.info("🔍 配置调试信息", {
+        features: config.features,
+        env: {
+          ENABLE_TOOLS: process.env.ENABLE_TOOLS,
+          ENABLE_RESOURCES: process.env.ENABLE_RESOURCES,
+          ENABLE_PROMPTS: process.env.ENABLE_PROMPTS
+        }
+      });
+
       // 设置工具处理器（核心功能）
       if (config.features.tools) {
         setupToolHandlers(this.server);
         logger.info("✅ 工具处理器已加载");
+      } else {
+        logger.warn("⚠️ 工具处理器未加载 - config.features.tools = false");
       }
 
       // 设置资源处理器

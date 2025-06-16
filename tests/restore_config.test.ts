@@ -3,7 +3,7 @@ import { ConfigService } from '../src/services/configService';
 import { handleRestoreConfig } from '../src/handlers/tools';
 
 vi.mock('../src/services/configService');
-const mockConfigService = new ConfigService() as unknown as ConfigService;
+const mockConfigService = new ConfigService();
 
 describe('restore_config 功能', () => {
   beforeEach(() => {
