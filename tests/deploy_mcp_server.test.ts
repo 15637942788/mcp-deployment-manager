@@ -58,8 +58,40 @@ describe('deploy_mcp_server 核心功能', () => {
       success: true,
       message: '部署成功',
       serverName: 'test-server',
-      backupInfo: { filename: 'backup.json', size: 123, configCount: 1 },
-      securityScan: { passed: true, score: 90, warnings: [], errors: [] },
+      backupInfo: { filename: 'backup.json', size: 123, configCount: 1, timestamp: '2024-01-01T00:00:00.000Z' },
+      securityScan: {
+        passed: true,
+        score: 90,
+        warnings: [],
+        errors: [],
+        details: {
+          codeAnalysis: {
+            passed: true,
+            dangerousFunctions: [],
+            suspiciousPatterns: [],
+            maliciousCommands: []
+          },
+          dependencyCheck: {
+            passed: true,
+            hasPackageJson: true,
+            hasRequirementsTxt: false,
+            vulnerableDependencies: [],
+            unspecifiedVersions: []
+          },
+          configurationCheck: {
+            passed: true,
+            hardcodedSecrets: [],
+            insecureConfigs: []
+          },
+          permissionCheck: {
+            passed: true,
+            fileExists: true,
+            isExecutable: true,
+            isInSecurePath: true,
+            pathTraversalRisk: false
+          }
+        }
+      },
       errors: [],
       warnings: []
     });
@@ -84,7 +116,39 @@ describe('deploy_mcp_server 核心功能', () => {
       message: '配置冲突',
       serverName: 'test-server',
       backupInfo: undefined,
-      securityScan: { passed: false, score: 0, warnings: ['mock warning'], errors: ['mock error'] },
+      securityScan: {
+        passed: false,
+        score: 0,
+        warnings: ['mock warning'],
+        errors: ['mock error'],
+        details: {
+          codeAnalysis: {
+            passed: false,
+            dangerousFunctions: [],
+            suspiciousPatterns: [],
+            maliciousCommands: []
+          },
+          dependencyCheck: {
+            passed: false,
+            hasPackageJson: false,
+            hasRequirementsTxt: false,
+            vulnerableDependencies: [],
+            unspecifiedVersions: []
+          },
+          configurationCheck: {
+            passed: false,
+            hardcodedSecrets: [],
+            insecureConfigs: []
+          },
+          permissionCheck: {
+            passed: false,
+            fileExists: false,
+            isExecutable: false,
+            isInSecurePath: false,
+            pathTraversalRisk: false
+          }
+        }
+      },
       errors: ['mock error'],
       warnings: ['mock warning']
     });

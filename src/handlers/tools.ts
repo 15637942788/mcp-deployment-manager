@@ -8,10 +8,9 @@ import * as fs from "fs-extra";
 import * as os from "os";
 import ConfigService from "../services/configService.js";
 import { SecurityService } from "../services/securityService.js";
-import { toolLogger, logError, PerformanceTimer, configLogger } from "../utils/logger.js";
+import { toolLogger, logError, PerformanceTimer } from "../utils/logger.js";
 import {
-  DeployServerRequest,
-  MCPServerConfig
+  DeployServerRequest
 } from "../types/index.js";
 import { ensureDeploymentRules } from './ensureDeploymentRules';
 
