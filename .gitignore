@@ -3,6 +3,7 @@ node_modules/
 
 # 构建产物
 dist/
+dist/**
 
 # 日志
 logs/
@@ -13,7 +14,11 @@ logs/
 
 # 编辑器/工具配置
 .cursor/
+.cursor/**
 
 # 临时文件
 *.tmp
-*.bak 
+*.bak
+
+# 编译产物映射文件
+*.map 
