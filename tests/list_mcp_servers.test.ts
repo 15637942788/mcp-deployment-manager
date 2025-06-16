@@ -8,10 +8,11 @@ const mockConfigService = new ConfigService() as unknown as ConfigService;
 describe('list_mcp_servers 功能', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    (mockConfigService as any).listServers = vi.fn();
   });
 
   it('应能正确列出所有MCP服务器', async () => {
-    mockConfigService.listServers = vi.fn().mockResolvedValue([
+    (mockConfigService as any).listServers.mockResolvedValue([
       { name: 'server1', type: 'node' },
       { name: 'server2', type: 'python' }
     ]);

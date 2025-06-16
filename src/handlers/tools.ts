@@ -13,6 +13,7 @@ import {
   DeployServerRequest,
   MCPServerConfig
 } from "../types/index.js";
+import { ensureDeploymentRules } from './ensureDeploymentRules';
 
 /**
  * 设置工具处理器
@@ -347,7 +348,119 @@ export async function handleDeployServer(
   args: DeployServerRequest,
   timer: PerformanceTimer
 ): Promise<any> {
-  // ... existing code ...
+  const { name, serverPath, serverType, description, env, disabled, autoApprove, force = false } = args;
+  // 校验服务器路径
+  if (!(await fs.pathExists(serverPath))) {
+    throw new Error(`服务器文件不存在: ${serverPath}`);
+  }
+  // 检查部署标准
+  const deploymentRulesResult = await ensureDeploymentRules(serverPath);
+  if (!deploymentRulesResult.success) {
+    throw new Error(`项目级部署标准检查失败: ${deploymentRulesResult.message}`);
+  }
+  // 构建服务器配置
+  const serverConfig = {
+    command: getCommandForServerType(serverType, serverPath),
+    args: getArgsForServerType(serverType, serverPath),
+    ...(env && { env }),
+    ...(disabled !== undefined && { disabled }),
+    ...(autoApprove && { autoApprove })
+  };
+  // 查找项目根目录
+  const projectRoot = findProjectRoot(serverPath) || undefined;
+  // 调用受保护的部署方法
+  const result = await configService.addServerWithProtection(
+    name,
+    serverConfig,
+    serverPath,
+    projectRoot,
+    force,
+    false // 永远不跳过安全检查
+  );
+  timer.end({
+    success: result.success,
+    serverName: name,
+    forced: force,
+    securityScore: result.securityScan?.score || 0,
+    backupCreated: !!result.backupInfo
+  });
+  // 失败分支
+  if (!result.success) {
+    return {
+      content: [{
+        type: "text",
+        text: JSON.stringify({
+          success: false,
+          message: result.message,
+          serverName: name,
+          configurationProtection: {
+            backupCreated: !!result.backupInfo,
+            backupFile: result.backupInfo?.filename,
+            originalConfigProtected: true,
+            protectionLevel: "强制备份与配置保护"
+          },
+          securityScan: result.securityScan ? {
+            passed: result.securityScan.passed,
+            score: result.securityScan.score,
+            errors: result.securityScan.errors,
+            warnings: result.securityScan.warnings
+          } : undefined,
+          securityDetails: result.securityScan?.details,
+          ...(result.errors && { errors: result.errors }),
+          ...(result.warnings && { warnings: result.warnings })
+        }, null, 2)
+      }]
+    };
+  }
+  // 成功分支
+  return {
+    content: [{
+      type: "text",
+      text: JSON.stringify({
+        success: true,
+        message: result.message,
+        serverName: result.serverName,
+        serverConfig,
+        description,
+        force,
+        configurationProtection: {
+          backupCreated: !!result.backupInfo,
+          backupFile: result.backupInfo?.filename,
+          backupSize: result.backupInfo?.size,
+          originalServersCount: result.backupInfo?.configCount,
+          protectionLevel: "强制备份与配置保护已启用"
+        },
+        securityScan: result.securityScan ? {
+          passed: result.securityScan.passed,
+          score: result.securityScan.score,
+          warnings: result.securityScan.warnings
+        } : undefined,
+        complianceInfo: {
+          globalSecurityPolicyEnforced: true,
+          securityStandardEnforced: true,
+          configurationProtectionEnabled: true,
+          mcpDeploymentStandard: "所有部署均经过全局安全策略验证并强制备份保护"
+        },
+        globalSecurityPolicy: {
+          enforced: true,
+          type: "global",
+          message: "使用全局安全策略，确保所有项目部署的一致性和安全性",
+          location: "全局配置（不依赖项目文件）",
+          status: "全局强制执行"
+        },
+        projectLevelStandard: {
+          required: deploymentRulesResult.projectStandardRequired || false,
+          exists: deploymentRulesResult.projectStandardExists || false,
+          synced: deploymentRulesResult.standardSynced || false,
+          message: deploymentRulesResult.message,
+          location: deploymentRulesResult.targetPath || "未知",
+          status: deploymentRulesResult.standardSynced ? "已同步最新标准" : "使用现有项目标准"
+        },
+        ...(result.errors && { errors: result.errors }),
+        ...(result.warnings && { warnings: result.warnings })
+      }, null, 2)
+    }]
+  };
 }
 
 /**
@@ -380,7 +493,7 @@ async function handleGetConfigPath(
 /**
  * 根据服务器类型获取命令
  */
-function getCommandForServerType(serverType: string, serverPath: string): string {
+export function getCommandForServerType(serverType: string, serverPath: string): string {
   switch (serverType) {
     case "node":
       return "node";
@@ -398,7 +511,7 @@ function getCommandForServerType(serverType: string, serverPath: string): string
 /**
  * 根据服务器类型获取参数
  */
-function getArgsForServerType(serverType: string, serverPath: string): string[] {
+export function getArgsForServerType(serverType: string, serverPath: string): string[] {
   switch (serverType) {
     case "node":
     case "python":
@@ -416,7 +529,7 @@ function getArgsForServerType(serverType: string, serverPath: string): string[] 
 /**
  * 处理列出服务器
  */
-async function handleListServers(
+export async function handleListServers(
   configService: ConfigService,
   timer: PerformanceTimer
 ): Promise<any> {
@@ -438,7 +551,7 @@ async function handleListServers(
 /**
  * 处理移除服务器
  */
-async function handleRemoveServer(
+export async function handleRemoveServer(
   configService: ConfigService,
   args: { name: string },
   timer: PerformanceTimer
@@ -480,7 +593,7 @@ async function handleGetSystemStatus(
 /**
  * 处理备份配置
  */
-async function handleBackupConfig(
+export async function handleBackupConfig(
   configService: ConfigService,
   args: { comment?: string },
   timer: PerformanceTimer
@@ -504,7 +617,7 @@ async function handleBackupConfig(
 /**
  * 处理恢复配置
  */
-async function handleRestoreConfig(
+export async function handleRestoreConfig(
   configService: ConfigService,
   args: { backupFile: string },
   timer: PerformanceTimer
@@ -527,7 +640,7 @@ async function handleRestoreConfig(
 /**
  * 处理验证配置
  */
-async function handleValidateConfig(
+export async function handleValidateConfig(
   configService: ConfigService,
   timer: PerformanceTimer
 ): Promise<any> {
@@ -570,13 +683,6 @@ async function handleScanServers(
     }]
   };
 }
-
-/**
- * 确保部署规则文件存在（增强版）
- * 检查项目的.cursor/rules/目录下是否存在mcp-部署标准.mdc文件
- * 如果不存在，从源位置复制过来，并验证文件完整性
- */
-
 
 /**
  * 查找项目根目录
@@ -1434,15 +1540,4 @@ async function handleGlobalSecurityManager(
       }]
     };
   }
-}
-
-export {
-  handleDeployServer,
-  handleListServers,
-  handleRemoveServer,
-  handleBackupConfig,
-  handleRestoreConfig,
-  handleValidateConfig
-};
-
-setupToolHandlers; 
+} 
