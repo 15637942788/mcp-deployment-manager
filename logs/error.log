@@ -1,0 +1,275 @@
+{
+  "timestamp": "2025-06-11 22:57:06",
+  "level": "error",
+  "service": "mcp-deployment-manager",
+  "message": "错误: 服务器启动失败",
+  "version": "1.0.0",
+  "error": {
+    "name": "Error",
+    "message": "无法访问Cursor配置目录: C:\\Users\\15637\\.cursor",
+    "stack": "Error: 无法访问Cursor配置目录: C:\\Users\\15637\\.cursor\n    at MCPDeploymentServer.validateConfiguration (file:///E:/mcp/mcp-deployment-manager/dist/server.js:151:19)\n    at async MCPDeploymentServer.start (file:///E:/mcp/mcp-deployment-manager/dist/server.js:99:13)\n    at async main (file:///E:/mcp/mcp-deployment-manager/dist/server.js:209:9)"
+  },
+  "context": "服务器启动失败"
+}
+{
+  "timestamp": "2025-06-12 01:19:34",
+  "level": "error",
+  "service": "mcp-deployment-manager",
+  "message": "错误: 工具执行失败: deploy_mcp_server",
+  "version": "1.0.0",
+  "error": {
+    "name": "Error",
+    "message": "服务器文件不存在: E:\\test\\dummy-server.js",
+    "stack": "Error: 服务器文件不存在: E:\\test\\dummy-server.js\n    at handleDeployServer (file:///E:/mcp/mcp-deployment-manager/dist/handlers/tools.js:204:15)\n    at async file:///E:/mcp/mcp-deployment-manager/dist/handlers/tools.js:163:28"
+  },
+  "context": "工具执行失败: deploy_mcp_server",
+  "arguments": {
+    "name": "context7-mcp",
+    "serverPath": "E:\\test\\dummy-server.js",
+    "serverType": "node",
+    "description": "测试覆盖保护"
+  }
+}
+{
+  "timestamp": "2025-06-12 01:19:35",
+  "level": "error",
+  "service": "mcp-deployment-manager",
+  "message": "错误: 工具执行失败: deploy_mcp_server",
+  "version": "1.0.0",
+  "error": {
+    "name": "Error",
+    "message": "服务器文件不存在: E:\\test\\dummy-server.js",
+    "stack": "Error: 服务器文件不存在: E:\\test\\dummy-server.js\n    at handleDeployServer (file:///E:/mcp/mcp-deployment-manager/dist/handlers/tools.js:204:15)\n    at async file:///E:/mcp/mcp-deployment-manager/dist/handlers/tools.js:163:28"
+  },
+  "context": "工具执行失败: deploy_mcp_server",
+  "arguments": {
+    "name": "test-force-server",
+    "serverPath": "E:\\test\\dummy-server.js",
+    "serverType": "node",
+    "description": "测试强制覆盖",
+    "force": true
+  }
+}
+{
+  "timestamp": "2025-06-12 01:19:36",
+  "level": "error",
+  "service": "mcp-deployment-manager",
+  "message": "错误: 工具执行失败: deploy_mcp_server",
+  "version": "1.0.0",
+  "error": {
+    "name": "Error",
+    "message": "服务器文件不存在: E:\\test\\another-server.js",
+    "stack": "Error: 服务器文件不存在: E:\\test\\another-server.js\n    at handleDeployServer (file:///E:/mcp/mcp-deployment-manager/dist/handlers/tools.js:204:15)\n    at async file:///E:/mcp/mcp-deployment-manager/dist/handlers/tools.js:163:28"
+  },
+  "context": "工具执行失败: deploy_mcp_server",
+  "arguments": {
+    "name": "test-force-server",
+    "serverPath": "E:\\test\\another-server.js",
+    "serverType": "node",
+    "description": "应该被拒绝"
+  }
+}
+{
+  "timestamp": "2025-06-12 01:20:51",
+  "level": "error",
+  "service": "mcp-deployment-manager",
+  "message": "错误: 读取配置文件失败",
+  "version": "1.0.0",
+  "error": {
+    "name": "TypeError",
+    "message": "fs.readFile is not a function",
+    "stack": "TypeError: fs.readFile is not a function\n    at ConfigService.readConfig (file:///E:/mcp/mcp-deployment-manager/dist/services/configService.js:60:38)\n    at async ConfigService.addServer (file:///E:/mcp/mcp-deployment-manager/dist/services/configService.js:295:35)\n    at async handleDeployServer (file:///E:/mcp/mcp-deployment-manager/dist/handlers/tools.js:215:20)\n    at async file:///E:/mcp/mcp-deployment-manager/dist/handlers/tools.js:163:28"
+  },
+  "context": "读取配置文件失败",
+  "path": "C:\\Users\\15637\\.cursor\\mcp.json"
+}
+{
+  "timestamp": "2025-06-12 01:20:51",
+  "level": "error",
+  "service": "mcp-deployment-manager",
+  "message": "错误: 添加服务器配置失败",
+  "version": "1.0.0",
+  "error": {
+    "name": "ConfigurationError",
+    "message": "无法读取Cursor配置文件",
+    "stack": "ConfigurationError: 无法读取Cursor配置文件\n    at ConfigService.readConfig (file:///E:/mcp/mcp-deployment-manager/dist/services/configService.js:69:19)\n    at async ConfigService.addServer (file:///E:/mcp/mcp-deployment-manager/dist/services/configService.js:295:35)\n    at async handleDeployServer (file:///E:/mcp/mcp-deployment-manager/dist/handlers/tools.js:215:20)\n    at async file:///E:/mcp/mcp-deployment-manager/dist/handlers/tools.js:163:28"
+  },
+  "context": "添加服务器配置失败",
+  "serverName": "context7-mcp"
+}
+{
+  "timestamp": "2025-06-12 01:20:52",
+  "level": "error",
+  "service": "mcp-deployment-manager",
+  "message": "错误: 读取配置文件失败",
+  "version": "1.0.0",
+  "error": {
+    "name": "TypeError",
+    "message": "fs.readFile is not a function",
+    "stack": "TypeError: fs.readFile is not a function\n    at ConfigService.readConfig (file:///E:/mcp/mcp-deployment-manager/dist/services/configService.js:60:38)\n    at async ConfigService.addServer (file:///E:/mcp/mcp-deployment-manager/dist/services/configService.js:295:35)\n    at async handleDeployServer (file:///E:/mcp/mcp-deployment-manager/dist/handlers/tools.js:215:20)\n    at async file:///E:/mcp/mcp-deployment-manager/dist/handlers/tools.js:163:28"
+  },
+  "context": "读取配置文件失败",
+  "path": "C:\\Users\\15637\\.cursor\\mcp.json"
+}
+{
+  "timestamp": "2025-06-12 01:20:52",
+  "level": "error",
+  "service": "mcp-deployment-manager",
+  "message": "错误: 添加服务器配置失败",
+  "version": "1.0.0",
+  "error": {
+    "name": "ConfigurationError",
+    "message": "无法读取Cursor配置文件",
+    "stack": "ConfigurationError: 无法读取Cursor配置文件\n    at ConfigService.readConfig (file:///E:/mcp/mcp-deployment-manager/dist/services/configService.js:69:19)\n    at async ConfigService.addServer (file:///E:/mcp/mcp-deployment-manager/dist/services/configService.js:295:35)\n    at async handleDeployServer (file:///E:/mcp/mcp-deployment-manager/dist/handlers/tools.js:215:20)\n    at async file:///E:/mcp/mcp-deployment-manager/dist/handlers/tools.js:163:28"
+  },
+  "context": "添加服务器配置失败",
+  "serverName": "test-new-server"
+}
+{
+  "timestamp": "2025-06-12 01:20:53",
+  "level": "error",
+  "service": "mcp-deployment-manager",
+  "message": "错误: 读取配置文件失败",
+  "version": "1.0.0",
+  "error": {
+    "name": "TypeError",
+    "message": "fs.readFile is not a function",
+    "stack": "TypeError: fs.readFile is not a function\n    at ConfigService.readConfig (file:///E:/mcp/mcp-deployment-manager/dist/services/configService.js:60:38)\n    at async ConfigService.addServer (file:///E:/mcp/mcp-deployment-manager/dist/services/configService.js:295:35)\n    at async handleDeployServer (file:///E:/mcp/mcp-deployment-manager/dist/handlers/tools.js:215:20)\n    at async file:///E:/mcp/mcp-deployment-manager/dist/handlers/tools.js:163:28"
+  },
+  "context": "读取配置文件失败",
+  "path": "C:\\Users\\15637\\.cursor\\mcp.json"
+}
+{
+  "timestamp": "2025-06-12 01:20:53",
+  "level": "error",
+  "service": "mcp-deployment-manager",
+  "message": "错误: 添加服务器配置失败",
+  "version": "1.0.0",
+  "error": {
+    "name": "ConfigurationError",
+    "message": "无法读取Cursor配置文件",
+    "stack": "ConfigurationError: 无法读取Cursor配置文件\n    at ConfigService.readConfig (file:///E:/mcp/mcp-deployment-manager/dist/services/configService.js:69:19)\n    at async ConfigService.addServer (file:///E:/mcp/mcp-deployment-manager/dist/services/configService.js:295:35)\n    at async handleDeployServer (file:///E:/mcp/mcp-deployment-manager/dist/handlers/tools.js:215:20)\n    at async file:///E:/mcp/mcp-deployment-manager/dist/handlers/tools.js:163:28"
+  },
+  "context": "添加服务器配置失败",
+  "serverName": "test-new-server"
+}
+{
+  "timestamp": "2025-06-12 01:20:54",
+  "level": "error",
+  "service": "mcp-deployment-manager",
+  "message": "错误: 读取配置文件失败",
+  "version": "1.0.0",
+  "error": {
+    "name": "TypeError",
+    "message": "fs.readFile is not a function",
+    "stack": "TypeError: fs.readFile is not a function\n    at ConfigService.readConfig (file:///E:/mcp/mcp-deployment-manager/dist/services/configService.js:60:38)\n    at async ConfigService.addServer (file:///E:/mcp/mcp-deployment-manager/dist/services/configService.js:295:35)\n    at async handleDeployServer (file:///E:/mcp/mcp-deployment-manager/dist/handlers/tools.js:215:20)\n    at async file:///E:/mcp/mcp-deployment-manager/dist/handlers/tools.js:163:28"
+  },
+  "context": "读取配置文件失败",
+  "path": "C:\\Users\\15637\\.cursor\\mcp.json"
+}
+{
+  "timestamp": "2025-06-12 01:20:54",
+  "level": "error",
+  "service": "mcp-deployment-manager",
+  "message": "错误: 添加服务器配置失败",
+  "version": "1.0.0",
+  "error": {
+    "name": "ConfigurationError",
+    "message": "无法读取Cursor配置文件",
+    "stack": "ConfigurationError: 无法读取Cursor配置文件\n    at ConfigService.readConfig (file:///E:/mcp/mcp-deployment-manager/dist/services/configService.js:69:19)\n    at async ConfigService.addServer (file:///E:/mcp/mcp-deployment-manager/dist/services/configService.js:295:35)\n    at async handleDeployServer (file:///E:/mcp/mcp-deployment-manager/dist/handlers/tools.js:215:20)\n    at async file:///E:/mcp/mcp-deployment-manager/dist/handlers/tools.js:163:28"
+  },
+  "context": "添加服务器配置失败",
+  "serverName": "test-new-server"
+}
+{
+  "timestamp": "2025-06-12 01:35:44",
+  "level": "error",
+  "service": "mcp-deployment-manager",
+  "message": "错误: 读取配置文件失败",
+  "version": "1.0.0",
+  "error": {
+    "name": "TypeError",
+    "message": "fs.readFile is not a function",
+    "stack": "TypeError: fs.readFile is not a function\n    at ConfigService.readConfig (file:///E:/mcp/mcp-deployment-manager/dist/services/configService.js:60:38)\n    at async ConfigService.addServer (file:///E:/mcp/mcp-deployment-manager/dist/services/configService.js:295:35)\n    at async handleDeployServer (file:///E:/mcp/mcp-deployment-manager/dist/handlers/tools.js:215:20)\n    at async file:///E:/mcp/mcp-deployment-manager/dist/handlers/tools.js:163:28"
+  },
+  "context": "读取配置文件失败",
+  "path": "C:\\Users\\15637\\.cursor\\mcp.json"
+}
+{
+  "timestamp": "2025-06-12 01:35:44",
+  "level": "error",
+  "service": "mcp-deployment-manager",
+  "message": "错误: 添加服务器配置失败",
+  "version": "1.0.0",
+  "error": {
+    "name": "ConfigurationError",
+    "message": "无法读取Cursor配置文件",
+    "stack": "ConfigurationError: 无法读取Cursor配置文件\n    at ConfigService.readConfig (file:///E:/mcp/mcp-deployment-manager/dist/services/configService.js:69:19)\n    at async ConfigService.addServer (file:///E:/mcp/mcp-deployment-manager/dist/services/configService.js:295:35)\n    at async handleDeployServer (file:///E:/mcp/mcp-deployment-manager/dist/handlers/tools.js:215:20)\n    at async file:///E:/mcp/mcp-deployment-manager/dist/handlers/tools.js:163:28"
+  },
+  "context": "添加服务器配置失败",
+  "serverName": "test-rule-server"
+}
+{
+  "timestamp": "2025-06-13 00:58:30",
+  "level": "error",
+  "service": "mcp-deployment-manager",
+  "message": "unhandledRejection: fs.writeFile is not a function\nTypeError: fs.writeFile is not a function\n    at GlobalSecurityManager.ensureDefaultPolicy (file:///E:/mcp/mcp-deployment-manager/dist/services/globalSecurityManager.js:197:22)\n    at async GlobalSecurityManager.initialize (file:///E:/mcp/mcp-deployment-manager/dist/services/globalSecurityManager.js:34:9)\n    at async ConfigService.initialize (file:///E:/mcp/mcp-deployment-manager/dist/services/configService.js:27:9)",
+  "error": {},
+  "stack": "TypeError: fs.writeFile is not a function\n    at GlobalSecurityManager.ensureDefaultPolicy (file:///E:/mcp/mcp-deployment-manager/dist/services/globalSecurityManager.js:197:22)\n    at async GlobalSecurityManager.initialize (file:///E:/mcp/mcp-deployment-manager/dist/services/globalSecurityManager.js:34:9)\n    at async ConfigService.initialize (file:///E:/mcp/mcp-deployment-manager/dist/services/configService.js:27:9)",
+  "rejection": true,
+  "date": "Fri Jun 13 2025 00:58:30 GMT+0800 (中国标准时间)",
+  "process": {
+    "pid": 18780,
+    "uid": null,
+    "gid": null,
+    "cwd": "E:\\mcp\\mcp-deployment-manager",
+    "execPath": "D:\\node\\node.exe",
+    "version": "v22.16.0",
+    "argv": [
+      "D:\\node\\node.exe",
+      "E:\\mcp\\mcp-deployment-manager\\dist\\server.js"
+    ],
+    "memoryUsage": {
+      "rss": 52989952,
+      "heapTotal": 18419712,
+      "heapUsed": 10061736,
+      "external": 2069631,
+      "arrayBuffers": 147455
+    }
+  },
+  "os": {
+    "loadavg": [
+      0,
+      0,
+      0
+    ],
+    "uptime": 177553.562
+  },
+  "trace": [
+    {
+      "column": 22,
+      "file": "file:///E:/mcp/mcp-deployment-manager/dist/services/globalSecurityManager.js",
+      "function": "GlobalSecurityManager.ensureDefaultPolicy",
+      "line": 197,
+      "method": "ensureDefaultPolicy",
+      "native": false
+    },
+    {
+      "column": 9,
+      "file": "file:///E:/mcp/mcp-deployment-manager/dist/services/globalSecurityManager.js",
+      "function": "async GlobalSecurityManager.initialize",
+      "line": 34,
+      "method": "initialize",
+      "native": false
+    },
+    {
+      "column": 9,
+      "file": "file:///E:/mcp/mcp-deployment-manager/dist/services/configService.js",
+      "function": "async ConfigService.initialize",
+      "line": 27,
+      "method": "initialize",
+      "native": false
+    }
+  ],
+  "version": "1.0.0"
+}

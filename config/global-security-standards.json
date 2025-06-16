@@ -1,0 +1,46 @@
+{
+  "codeRules": {
+    "forbiddenFunctions": [
+      "eval",
+      "exec",
+      "execSync",
+      "spawn",
+      "fork",
+      "child_process"
+    ],
+    "forbiddenPatterns": [
+      "rm -rf",
+      "sudo",
+      "chmod 777",
+      "__import__",
+      "getattr"
+    ],
+    "requiredPatterns": []
+  },
+  "dependencyRules": {
+    "forbiddenPackages": [
+      "malicious-package",
+      "crypto-miner"
+    ],
+    "vulnerabilityToleranceLevel": "low",
+    "requireFixedVersions": true
+  },
+  "configurationRules": {
+    "forbiddenSecrets": [
+      "password",
+      "secret",
+      "key",
+      "token",
+      "api_key"
+    ],
+    "requiredValidations": [
+      "input_validation",
+      "output_sanitization"
+    ]
+  },
+  "deploymentRules": {
+    "requiredBackup": true,
+    "allowForceDeployment": false,
+    "requireSecurityScan": true
+  }
+}
